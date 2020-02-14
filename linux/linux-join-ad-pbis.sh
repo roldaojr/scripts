@@ -1,5 +1,8 @@
 #!/bin/bash
-pbis_open_url="https://github.com/BeyondTrust/pbis-open/releases/download/9.0.1/pbis-open-9.0.1.525.linux.x86_64.deb.sh"
+releases="https://api.github.com/repos/BeyondTrust/pbis-open/releases/latest"
+arch="x86_64" # or x86
+
+pbis_open_url=`curl --silent $releases | grep -e "url.*$arch.deb.sh" | sed -E 's/.*"([^"]+)".*/\1/'`
 
 if [ ! -f /opt/pbis/bin/domainjoin-cli ]; then
     echo "Baixando e instalando pbis-open"
@@ -28,9 +31,11 @@ fi
 echo "Ingressando no dominio"
 /opt/pbis/bin/domainjoin-cli join $domain
 
+if [ -d /etc/lightdm/lightdm.conf.d ];then
 echo "Configurando lightdm"
 echo > /etc/lightdm/lightdm.conf.d/00-hide-user-list.conf <<EOF
 [SeatDefaults]
 greeter-hide-users=true
 greeter-show-manual-login=true
 EOF
+fi
