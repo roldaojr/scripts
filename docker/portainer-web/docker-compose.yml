@@ -1,0 +1,67 @@
+version: '3.3'
+
+services:
+  web:
+    image: traefik
+    restart: always
+    container_name: traefik
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --entrypoints.http.address=:80
+      - --entrypoints.https.address=:443
+      - --entrypoints.https.http.tls.certResolver=le
+      - --certificatesresolvers.le.acme.tlschallenge=true
+      - --certificatesresolvers.le.acme.email=${EMAIL?Variable not set}
+      - --certificatesresolvers.le.acme.storage=/certificates/acme.json
+      - --log
+      - --api
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - certificates:/certificates
+    networks:
+      proxy:
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web_proxy
+      - traefik.http.middlewares.admin-auth.basicauth.users=${USERNAME?Variable not set}:${HASHED_PASSWORD?Variable not set}
+      - traefik.http.middlewares.tohttps.redirectscheme.scheme=https
+      - traefik.http.middlewares.tohttps.redirectscheme.permanent=true
+      - traefik.http.routers.http-catchall.rule=hostregexp(`${DOMAIN?Variable not set}`, `{subdomain:[a-z]+}.${DOMAIN?Variable not set}`)
+      - traefik.http.routers.http-catchall.entrypoints=http
+      - traefik.http.routers.http-catchall.middlewares=tohttps
+      - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN?Variable not set}`)
+      - traefik.http.routers.traefik.entrypoints=https
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.tls=true
+      - traefik.http.routers.traefik.tls.certResolver=le
+      - traefik.http.routers.traefik.middlewares=admin-auth
+      - traefik.http.services.traefik.loadbalancer.server.port=8080
+  portainer:
+    image: portainer/portainer-ce
+    container_name: portainer
+    restart: always
+    command: -H unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    networks:
+      proxy:
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN?Variable not set}`)
+      - traefik.http.routers.portainer.entrypoints=https
+      - traefik.http.routers.portainer.tls.certResolver=le
+      - traefik.http.services.portainer.loadbalancer.server.port=9000
+      - traefik.docker.network=web_proxy
+
+networks:
+  proxy:
+    driver: bridge
+
+volumes:
+  certificates:
+  portainer-data:
